@@ -10,6 +10,7 @@
 #include "PlayerControls.h"
 #include "PlayerBookmark.h"
 #include "PlayerDisplay.h"
+#include "PlayerAnimation.h"
 #include "FirmwareVersion.h"
 #include "ChannelRouting.h"
 
@@ -33,6 +34,8 @@ const __FlashStringHelper* statusText = nullptr;
 uint32_t dataSize = 0;
 char screenText[3][17] = {{0}}; // exactly the 17 visible text columns
 uint8_t screenIcon = 255, screenMode = 255, screenBar = 255;
+uint8_t screenBarPhase = 0;
+PlayerAnimation animation;
 unsigned long lastDisplay = 0;
 volatile uint8_t head = 0, tail = 0;
 volatile uint8_t buffer[128];
@@ -191,6 +194,7 @@ void scanFolders() {
     File entry = dir.openNextFile();
     if (!entry) break;
     bool directory = entry.isDirectory();
+    drawStartupAnimation();
     if (directory || isPsg(entry)) hashCatalogEntry(entry);
     if (directory) {
       char path[14];
@@ -208,6 +212,7 @@ void scanFolders() {
         if (!childDir) break;
         File child = childDir.openNextFile();
         if (!child) break;
+        drawStartupAnimation();
         if (isPsg(child)) { hashCatalogEntry(child); hasTracks = true; }
         child.close();
       }
@@ -320,6 +325,7 @@ bool startTrack(uint16_t index) {
     playing = true;
   }
   statusText = F("Playing");
+  animation.trigger(millis(), true);
   Serial.print(F("PLAY ")); Serial.print(path);
   Serial.print(F(" / ")); Serial.print(rate); Serial.println(F(" Hz"));
   return true;
@@ -423,8 +429,18 @@ uint8_t footerTextPixel(uint8_t x) {
 
 void drawFooter(uint8_t first, uint8_t last, uint8_t width) {
   oled.setCursor(first, 3);
-  for (uint8_t x = first; x <= last; ++x)
-    oled.ssd1306WriteRam(footerDisplayColumn(x, width, footerTextPixel(x)));
+  for (uint8_t x = first; x <= last; ++x) {
+    oled.ssd1306WriteRam(footerDisplayColumn(x, width, footerTextPixel(x), false, screenBarPhase));
+    if ((x & 7) == 7) fillBuffer();
+  }
+}
+
+void drawStartupAnimation() {
+  if (!displayReady || millis() - lastDisplay < 120) return;
+  lastDisplay = millis();
+  oled.setCursor(40, 1);
+  uint8_t phase = (lastDisplay / 120) % 8;
+  for (uint8_t x = 0; x < 48; ++x) oled.ssd1306WriteRam(startupWaveColumn(x, phase));
 }
 
 void updateText(uint8_t row, const char* text, uint8_t start = 0) {
@@ -448,14 +464,16 @@ void drawDisplay() {
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { position = consumed; }
   char line[22];
   uint8_t icon = paused ? 1 : playing && !finished ? 0 : 2;
-  if (icon != screenIcon) {
+  uint8_t emphasis = animation.emphasis(millis());
+  uint8_t iconFrame = icon | (emphasis << 2);
+  if (iconFrame != screenIcon) {
     for (uint8_t page = 0; page < 3; ++page) {
       oled.setCursor(104, page);
       for (uint8_t x = 0; x < 24; ++x)
-        oled.ssd1306WriteRam(transportIconColumn(icon, x, page));
+        oled.ssd1306WriteRam(transportIconColumn(icon, x, page, emphasis));
       fillBuffer();
     }
-    screenIcon = icon;
+    screenIcon = iconFrame;
   }
   // Folder name and its index/count have a full row of their own.
   folderDisplayLine(line, folderIndex, folderCount, folder);
@@ -464,7 +482,9 @@ void drawDisplay() {
   for (uint8_t i = 0; i < 3; ++i) line[14 + i] = pgm_read_byte(&channelLabels[channelMode][i]);
   line[17] = 0;
   updateText(0, line);
-  updateText(1, song);
+  strncpy(line, song, sizeof(line) - 1);
+  line[animation.nameColumns(millis())] = 0;
+  updateText(1, line);
   if (screenMode != playbackMode) {
     oled.setCursor(0, 2);
     for (uint8_t i = 0; i < 12; ++i)
@@ -483,9 +503,12 @@ void drawDisplay() {
   }
   updateText(2, line, 3);
   uint8_t width = insetBarWidth(position, dataSize);
-  if (width != screenBar) {
-    uint8_t first = screenBar == 255 ? 0 : min(width, screenBar) + 3;
+  uint8_t phase = playing && !finished ? (millis() / 160) % 6 : screenBarPhase;
+  bool moving = phase != screenBarPhase && width;
+  if (width != screenBar || moving) {
+    uint8_t first = screenBar == 255 ? 0 : moving ? 3 : min(width, screenBar) + 3;
     uint8_t last = screenBar == 255 ? 127 : max(width, screenBar) + 2;
+    screenBarPhase = phase;
     drawFooter(first, last, width);
     screenBar = width;
     fillBuffer();
@@ -516,6 +539,8 @@ void setup() {
     oled.set1X(); oled.setCursor(16, 0); oled.print(F("AYNano ZX Player"));
     oled.set1X(); oled.setCursor(36, 2); oled.print(F("v" AY_PLAYER_VERSION));
     oled.setCursor(18, 3); oled.print(F("Scanning SD..."));
+    lastDisplay = millis() - 120;
+    drawStartupAnimation();
   }
   randomSeed(analogRead(A7) ^ micros());
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -539,6 +564,13 @@ void setup() {
 void loop() {
   fillBuffer();
   char command = Serial.available() ? Serial.read() : 0;
+  if (command == 'S') {
+    uint16_t missed;
+    uint32_t position;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { missed = underruns; position = consumed; }
+    Serial.print(F("STATS underruns=")); Serial.print(missed);
+    Serial.print(F(" consumed=")); Serial.println(position);
+  }
   if (command == 'D') {
     uint16_t restoreFolder = folderIndex, restoreTrack = trackIndex;
     stopPlayback();
@@ -548,6 +580,7 @@ void loop() {
     // Exercise the same next/previous operations as physical keys 6 and 5.
     if (moveFolder(1)) startTrack(0);
     if (moveFolder(-1)) startTrack(0);
+    stopPlayback(); // release the song handle before counting the restore folder
     if (selectFolder(restoreFolder)) startTrack(restoreTrack);
   }
   uint16_t raw = analogRead(A6);
@@ -555,6 +588,7 @@ void loop() {
   if (!reading && raw < 950) reading = 255;
   uint8_t button = keys.update(reading, millis());
   if (button) {
+    animation.trigger(millis());
     Serial.print(F("KEY ")); Serial.println(button);
     switch (button) {
       case 1: moveTrack(-1, false); break;
@@ -588,5 +622,8 @@ void loop() {
     lastDisplay = millis() - 250;
   }
   if (finished && !paused) moveTrack(1, true);
-  if (millis() - lastDisplay >= 250) { lastDisplay = millis(); drawDisplay(); }
+  animation.expire(millis());
+  if (millis() - lastDisplay >= (animation.kind || playing ? 80 : 250)) {
+    lastDisplay = millis(); drawDisplay();
+  }
 }

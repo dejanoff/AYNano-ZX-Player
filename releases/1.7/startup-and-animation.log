@@ -1,0 +1,25 @@
+AYNano ZX Player 1.7 / 6 keys
+OLED 0x3C
+FOLDER / index=1/12 files=50
+BOOKMARK restored
+PLAY /MMCM-H~1.PSG / 50 Hz
+STATS underruns=0 consumed=2052
+FOLDER / index=1/12 files=50
+FOLDER /0 index=2/12 files=72
+FOLDER /1 index=3/12 files=106
+FOLDER /2 index=4/12 files=42
+FOLDER /3 index=5/12 files=41
+FOLDER /4 index=6/12 files=42
+FOLDER /5 index=7/12 files=41
+FOLDER /6 index=8/12 files=41
+FOLDER /7 index=9/12 files=31
+FOLDER /8 index=10/12 files=42
+FOLDER /9 index=11/12 files=43
+FOLDER /10 index=12/12 files=32
+FOLDER / index=1/12 files=50
+PLAY /OXYGENE.PSG / 50 Hz
+FOLDER /10 index=12/12 files=32
+PLAY /10/000_00~1.PSG / 50 Hz
+FOLDER / index=1/12 files=50
+PLAY /MMCM-H~1.PSG / 50 Hz
+STATS underruns=0 consumed=2821

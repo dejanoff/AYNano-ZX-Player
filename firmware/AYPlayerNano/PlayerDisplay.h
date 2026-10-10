@@ -31,38 +31,46 @@ inline uint8_t textPageColumn(uint8_t glyph, uint8_t row) {
   return (glyph & 0x7F) << row;
 }
 
-inline uint8_t footerDisplayColumn(uint8_t x, uint8_t width, uint8_t textPixel, bool tall = false) {
+inline uint8_t footerDisplayColumn(uint8_t x, uint8_t width, uint8_t textPixel, bool tall = false, uint8_t phase = 0) {
   // Six-pixel capsule at y=26..31. Pixel y=25 separates it from the text.
   uint8_t outline = tall ? (x == 0 || x == 127 ? 0x3C : x == 1 || x == 126 ? 0x42 : 0x81) :
     (x == 0 || x == 127 ? 0x30 : x == 1 || x == 126 ? 0x48 : 0x84);
   uint8_t hatch = 0;
   if (x >= 3 && x < uint16_t(width) + 3) {
-    // Static diagonal dashes. Only the advancing endpoint is redrawn.
+    // Moving diagonal dashes, clipped to the real progress endpoint.
     for (uint8_t y = tall ? 2 : 4; y <= 5; ++y)
-      if (((x + y) % 6) < 3) hatch |= uint8_t(1 << y);
+      if (((x + y + 6 - phase % 6) % 6) < 3) hatch |= uint8_t(1 << y);
   }
   return outline | hatch | (tall ? 0 : textPixel & 1);
 }
 
-inline bool transportIconPixel(uint8_t state, uint8_t x, uint8_t y) {
+inline bool transportIconPixel(uint8_t state, uint8_t x, uint8_t y, uint8_t emphasis = 0) {
   if (x >= 24 || y >= 24) return false;
-  // Rounded square border with a clear margin around the transport symbol.
-  if ((y == 0 || y == 23) && x >= 2 && x <= 21) return true;
-  if ((x == 0 || x == 23) && y >= 2 && y <= 21) return true;
-  if ((x == 1 || x == 22) && (y == 1 || y == 22)) return true;
-  if (state == 0 && y >= 4 && y <= 19) {
-    uint8_t reach = (y <= 11 ? y - 4 : 19 - y) * 12 / 7;
-    return x >= 6 && x <= 6 + reach;
+  if (emphasis > 2) emphasis = 2;
+  // Standalone transport symbols, with room for a brief two-pixel pulse.
+  if (state == 0 && y >= 4 - emphasis && y <= 19 + emphasis) {
+    uint8_t reach = (y <= 11 ? y - (4 - emphasis) : 19 + emphasis - y) *
+      (12 + 2 * emphasis) / (7 + emphasis);
+    return x >= 6 - emphasis && x <= 6 - emphasis + reach;
   }
-  if (state == 1) return y >= 5 && y <= 18 &&
-    ((x >= 6 && x <= 9) || (x >= 14 && x <= 17));
-  return state == 2 && x >= 6 && x <= 17 && y >= 6 && y <= 17;
+  if (state == 1) return y >= 5 - emphasis && y <= 18 + emphasis &&
+    ((x >= 6 - emphasis && x <= 9 + emphasis / 2) ||
+     (x >= 14 - emphasis / 2 && x <= 17 + emphasis));
+  return state == 2 && x >= 6 - emphasis && x <= 17 + emphasis &&
+    y >= 6 - emphasis && y <= 17 + emphasis;
 }
 
-inline uint8_t transportIconColumn(uint8_t state, uint8_t x, uint8_t page) {
+inline uint8_t transportIconColumn(uint8_t state, uint8_t x, uint8_t page, uint8_t emphasis = 0) {
   uint8_t result = 0;
   for (uint8_t bit = 0; bit < 8; ++bit)
-    if (transportIconPixel(state, x, page * 8 + bit)) result |= uint8_t(1 << bit);
+    if (transportIconPixel(state, x, page * 8 + bit, emphasis)) result |= uint8_t(1 << bit);
   return result;
+}
+
+inline uint8_t startupWaveColumn(uint8_t x, uint8_t phase) {
+  if (x % 4 == 3) return 0;
+  uint8_t step = (x / 4 + phase) % 8;
+  uint8_t height = 2 + (step < 4 ? step : 7 - step);
+  return uint8_t(((1 << height) - 1) << ((8 - height) / 2));
 }
 #endif

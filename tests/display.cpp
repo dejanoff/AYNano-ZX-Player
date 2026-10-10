@@ -59,9 +59,42 @@ int main() {
   check(!transportIconPixel(2, 5, 6));
   check(!transportIconPixel(0, 24, 10));
   check(!transportIconPixel(0, 10, 24));
-  check(transportIconColumn(2, 0, 0) == 0xFC);
+  check(transportIconColumn(2, 0, 0) == 0);
   check(transportIconColumn(2, 6, 1) == 0xFF);
   check(transportIconColumn(1, 12, 1) == 0);
+  bool borderClear = true, barSafe = true, waveSafe = true;
+  for (uint8_t state = 0; state < 3; ++state)
+    for (uint8_t pulse = 0; pulse < 3; ++pulse)
+      for (uint8_t edge = 0; edge < 24; ++edge)
+        borderClear &= !transportIconPixel(state, edge, 0, pulse) &&
+          !transportIconPixel(state, edge, 23, pulse) &&
+          !transportIconPixel(state, 0, edge, pulse) &&
+          !transportIconPixel(state, 23, edge, pulse);
+  check(borderClear);
+  check(transportIconPixel(2, 4, 4, 2));
+  check(!transportIconPixel(2, 4, 4));
+  check(!transportIconPixel(1, 11, 8, 2));
+  check(!transportIconPixel(1, 12, 8, 2));
+  for (uint8_t phase = 0; phase < 6; ++phase)
+    for (uint8_t x = 0; x < 128; ++x) {
+      uint8_t column = footerDisplayColumn(x, 61, 1, false, phase);
+      barSafe &= (column & 0xCF) == (footerDisplayColumn(x, 0, 1) & 0xCF);
+      if (x < 3 || x >= 64) barSafe &= (column & 0x30) ==
+        (footerDisplayColumn(x, 0, 1) & 0x30);
+    }
+  check(barSafe); // animated fill preserves border, gap, text and endpoint
+  check(footerDisplayColumn(7, 61, 0, false, 0) !=
+    footerDisplayColumn(7, 61, 0, false, 2));
+  check(footerDisplayColumn(7, 61, 0, false, 0) ==
+    footerDisplayColumn(7, 61, 0, false, 6));
+  for (uint8_t phase = 0; phase < 8; ++phase)
+    for (uint8_t x = 0; x < 48; ++x) {
+      uint8_t column = startupWaveColumn(x, phase);
+      waveSafe &= (column & 0x81) == 0;
+      if (x % 4 == 3) waveSafe &= column == 0;
+    }
+  check(waveSafe);
+  check(startupWaveColumn(0, 0) != startupWaveColumn(0, 3));
   test_done = 0xA5;
   for (;;) {}
 }

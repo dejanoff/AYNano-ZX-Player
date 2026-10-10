@@ -1,4 +1,4 @@
 #ifndef AY_FIRMWARE_VERSION_H
 #define AY_FIRMWARE_VERSION_H
-#define AY_PLAYER_VERSION "1.6"
+#define AY_PLAYER_VERSION "1.7"
 #endif

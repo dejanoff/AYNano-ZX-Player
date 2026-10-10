@@ -1,5 +1,16 @@
 # AYNano ZX Player releases
 
+## 1.7 — 2026-10-10
+
+- Remove the surrounding frame from the large play/pause/stop symbols.
+- Animate a small wave beneath the title while the SD catalogue is scanned.
+- Give button actions a brief transport-symbol pulse and reveal new track names over 400 ms without delaying playback.
+- Move the diagonal hatching inside the progress bar while playing; freeze it on pause/stop. Keep the thin frame, text gap and actual progress endpoint.
+- Generate animation pixels directly with six additional bytes of static RAM; refill the music buffer during footer redraws. EEPROM bookmarks and controls retain their format/behavior.
+- Close the current song before the Serial folder diagnostic restores the original folder, keeping SD enumeration to two live handles.
+
+Validation: 186 display and 19 animation assertions passed on compiled AVR code; existing 25 routing, 55 control/bookmark and 12 timing checks also passed. Firmware: 27176 bytes flash, 1488 bytes static RAM. COM6 flash verification succeeded. Hardware checks found all 12 music sources, restored the bookmark and played songs across folder transitions; the music buffer reported zero underruns during animation. Release files and the hardware log are in `releases/1.7`.
+
 ## 1.6 — 2026-10-10
 
 - Rename the player to AYNano ZX Player on the startup screen and Serial log.
