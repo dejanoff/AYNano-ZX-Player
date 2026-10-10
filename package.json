@@ -1,0 +1,9 @@
+{
+  "name": "aynano-zx-player-tests",
+  "version": "1.6.0",
+  "private": true,
+  "description": "AVR simulation checks for AYNano ZX Player",
+  "devDependencies": {
+    "avr8js": "0.21.0"
+  }
+}

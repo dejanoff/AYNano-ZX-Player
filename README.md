@@ -147,4 +147,3 @@ CHANGELOG.md            история версий
 - **Arduino / SparkFun** и **Bill Greiman** — используемые библиотеки SD и SSD1306Ascii.
 
 Сведения о происхождении и лицензиях сторонних компонентов: [CREDITS.md](docs/CREDITS.md).
-

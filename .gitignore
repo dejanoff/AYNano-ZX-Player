@@ -1,0 +1,14 @@
+# Local tools, build products and hardware backups
+build/
+backups/
+node_modules/
+.tools/
+.arduino/
+.publish/
+tests/*.elf
+tests/*.bin
+tests/*.symbols
+diagnostics/logs/
+*.tmp
+
+# Versioned release HEX and logs are deliberately included.
